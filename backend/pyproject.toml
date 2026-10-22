@@ -1,0 +1,10 @@
+[project]
+name = "fhir-migration-backend"
+version = "0.1.0"
+description = "Migrates FHIR R4 Patients and Observations into a simplified internal model."
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2",
+    "pydantic>=2.7",
+    "requests>=2.32",
+]

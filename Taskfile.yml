@@ -1,0 +1,57 @@
+version: '3'
+
+vars:
+  PY: backend/.venv/bin/python
+  BACKEND_PORT: '{{.BACKEND_PORT | default "8000"}}'
+
+tasks:
+  install:
+    desc: Create the Python venv, install backend and frontend dependencies
+    cmds:
+      - uv venv backend/.venv
+      - uv pip install --python {{.PY}} -r backend/pyproject.toml
+      - npm install --prefix frontend --no-audit --no-fund
+
+  migrate:
+    desc: Apply Django database migrations (creates backend/db.sqlite3)
+    cmds:
+      - '{{.PY}} backend/manage.py migrate'
+
+  import:
+    desc: 'Full migration: pull all Patients then all Observations from the FHIR sandbox (resumable). Extra flags after "--"'
+    deps: [migrate]
+    cmds:
+      - '{{.PY}} backend/manage.py import_fhir {{.CLI_ARGS}}'
+
+  import:light:
+    desc: 'Demonstration only: 2 pages per phase (1000 patients, 1000 observations, about a minute). Use "task import" for the real thing'
+    deps: [migrate]
+    cmds:
+      - '{{.PY}} backend/manage.py import_fhir --max-pages 2 {{.CLI_ARGS}}'
+
+  run:
+    desc: Run backend (port {{.BACKEND_PORT}}) and frontend (port 5173) together
+    deps: [run:backend, run:frontend]
+
+  run:backend:
+    desc: Run the Django dev server
+    cmds:
+      - '{{.PY}} backend/manage.py runserver {{.BACKEND_PORT}}'
+
+  run:frontend:
+    desc: Run the Vite dev server (proxies /api to the backend)
+    env:
+      BACKEND_URL: 'http://127.0.0.1:{{.BACKEND_PORT}}'
+    cmds:
+      - npm run dev --prefix frontend
+
+  test:
+    desc: Run backend tests
+    cmds:
+      - '{{.PY}} backend/manage.py test migration'
+
+  reset-db:
+    desc: Delete the SQLite database and re-create it empty
+    cmds:
+      - rm -f backend/db.sqlite3 backend/db.sqlite3-wal backend/db.sqlite3-shm
+      - '{{.PY}} backend/manage.py migrate'
